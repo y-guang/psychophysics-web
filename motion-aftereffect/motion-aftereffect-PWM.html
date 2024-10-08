@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motion Aftereffect (MAE)</title>
+</head>
+
+<style>
+    body {
+        background-color: #808080;
+    }
+
+    .circle-mask {
+        position: relative;
+        border-radius: 50%;
+        overflow: hidden;
+    }
+
+    .stimulus-container {
+        height: 50vh;
+        border: 1px solid black;
+        position: relative;
+    }
+
+    .draggable {
+        cursor: grab;
+    }
+</style>
+
+<body>
+    <h1>Motion Aftereffect (MAE)</h1>
+    <div class="stimulus-container"></div>
+    <h2>Settings</h2>
+    <div class="settings-container"></div>
+    <h2>What is this?</h2>
+    <p>
+        The stimuli are drifting luminance noise. It drifts single direction with a certain speed.
+    </p>
+    <p>
+        The motion aftereffect (MAE) is a visual illusion that after watching a moving stimulus for some time,
+        stationary objects appear to move in the opposite direction. For example, if you stair the stimulus for 30
+        seconds, and then click stop all button, you will see a motion toward the opposite direction.
+    </p>
+    <p>
+        Different types of motion can trigger different MAE. Current stimulus is one type of first-order motion.
+    </p>
+    <h2>Tips</h2>
+    <ul>
+        <li>The stimulus is draggable, you can move it around by clicking and dragging.</li>
+        <li>You can use space to stop and start all stimuli.</li>
+        <li>In the Control Panel, you can add more stimuli and specify the width and height of the stimulus.</li>
+        <li>New stimuli will be at the top right corner of the container. it may stack on top of each other. Drag them
+            to see another one.</li>
+    </ul>
+    <h2>Links</h2>
+    <ul>
+        <li>
+            <a href="../index.html">Back to Homepage</a>
+        </li>
+    </ul>
+    <ul>
+        <li>
+            <a href="https://github.com/y-guang/psychophysics-web">GitHub Repository</a>
+        </li>
+    </ul>
+    <h2>Reference</h2>
+    <ul>
+        <li>
+            <p>Anstis, S., Verstraten, F. A., &amp; Mather, G. (1998). The motion aftereffect. <em>Trends in cognitive
+                    sciences</em>, 2(3), 111-117.</p>
+        </li>
+    </ul>
+
+    <script>
+        function randomGray() {
+            const gray = Math.floor(Math.random() * 256);
+            return `rgb(${gray},${gray},${gray})`;
+        }
+
+        function createGrayscaleCanvas(width, height) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    ctx.fillStyle = randomGray();
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            return canvas;
+        }
+
+        function repeatCanvas(canvas, width, height) {
+            const repeatedCanvas = document.createElement('canvas');
+            repeatedCanvas.width = width;
+            repeatedCanvas.height = height;
+            const ctx = repeatedCanvas.getContext('2d');
+
+            for (let x = 0; x < width; x += canvas.width) {
+                for (let y = 0; y < height; y += canvas.height) {
+                    ctx.drawImage(canvas, x, y);
+                }
+            }
+
+            return repeatedCanvas;
+        }
+
+        function createCircleMask(width, height) {
+            const mask = document.createElement('div');
+            mask.className = 'circle-mask';
+            mask.style.width = `${width}px`;
+            mask.style.height = `${height}px`;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            return mask;
+        }
+
+        function setupDraggable(element) {
+            let initialX = 0;
+            let initialY = 0;
+            let currentX = 0;
+            let currentY = 0;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            element.style.cursor = 'grab'; // Set cursor to grab
+
+            element.addEventListener('mousedown', startDrag, false);
+            element.addEventListener('touchstart', startDrag, false);
+
+            function startDrag(e) {
+                e.preventDefault(); // Prevent default behavior
+                if (e.type === 'touchstart') {
+                    initialX = e.touches[0].clientX - xOffset;
+                    initialY = e.touches[0].clientY - yOffset;
+                } else {
+                    initialX = e.clientX - xOffset;
+                    initialY = e.clientY - yOffset;
+                }
+
+                // Add the moving and stopping listeners only when starting to drag
+                document.addEventListener('mousemove', drag, false);
+                document.addEventListener('mouseup', endDrag, false);
+                document.addEventListener('touchmove', drag, false);
+                document.addEventListener('touchend', endDrag, false);
+
+                element.style.cursor = 'grabbing'; // Change cursor during drag
+            }
+
+            function drag(e) {
+                e.preventDefault(); // Prevent default behavior
+
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, element);
+            }
+
+            function endDrag(e) {
+                initialX = currentX;
+                initialY = currentY;
+
+                // Remove the moving and stopping listeners when stopping the drag
+                document.removeEventListener('mousemove', drag, false);
+                document.removeEventListener('mouseup', endDrag, false);
+                document.removeEventListener('touchmove', drag, false);
+                document.removeEventListener('touchend', endDrag, false);
+
+                element.style.cursor = 'grab'; // Reset cursor after drag
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+            }
+        }
+
+        class MotionAftereffectStimulus {
+            constructor(width, height, speed) {
+                this.width = width;
+                this.height = height;
+                this.speed = speed;
+                this.currentLeft = -width;
+                this.originalCanvas = createGrayscaleCanvas(width, height);
+                this.canvas = repeatCanvas(this.originalCanvas, width * 2, height)
+                this.canvas.style.position = 'relative';
+                this.mask = createCircleMask(width, height);
+                this.mask.appendChild(this.canvas);
+                this.container = createCircleMask(width, height);
+                this.container.appendChild(this.mask);
+                // float the container
+                this.container.style.position = 'absolute';
+                this.running = true;
+                this.eachFrame();
+
+                // properties
+                this._contrast = 1;
+                this._direction = 0;
+                this._opacity = 1;
+                this._z_index = "auto";
+                this.mask.style.transform = `rotate(${180}deg)`;
+            }
+
+            appendTo(element) {
+                element.appendChild(this.container);
+            }
+
+            set contrast(contrast) {
+                this._contrast = contrast;
+                this.canvas.style.filter = `contrast(${contrast})`;
+            }
+
+            get contrast() {
+                return this._contrast;
+            }
+
+            set direction(direction) {
+                this._direction = direction;
+                let calculatedDirection = (direction + 180) % 360;
+                this.mask.style.transform = `rotate(${calculatedDirection}deg)`;
+            }
+
+            get direction() {
+                return this._direction;
+            }
+
+            set opacity(opacity) {
+                this._opacity = opacity;
+                this.mask.style.opacity = opacity;
+            }
+
+            set z_index(z_index) {
+                this._z_index = z_index;
+                this.container.style.zIndex = z_index;
+            }
+
+            start() {
+                this.running = true
+            }
+
+            pause() {
+                this.running = false;
+            }
+
+            eachFrame() {
+                // set relative position
+                if (this.running) {
+                    this.currentLeft = (this.currentLeft - this.speed) % this.width;
+                    this.canvas.style.left = `${this.currentLeft}px`;
+                }
+                requestAnimationFrame(() => this.eachFrame());
+            }
+
+            getController() {
+                const form = document.createElement('form');
+                const fieldset = document.createElement('fieldset');
+                const table = document.createElement('table');
+                form.appendChild(fieldset);
+                fieldset.appendChild(table);
+                table.style.borderCollapse = 'collapse';
+
+                const properties = [
+                    { id: 'speed', label: 'Speed (pix/s)', min: 0, max: 10, step: 0.1, defaultValue: this.speed },
+                    { id: 'contrast', label: 'Contrast', min: 0, max: 1, step: 0.01, defaultValue: this._contrast },
+                    { id: 'direction', label: 'Direction (deg)', min: 0, max: 360, step: 1, defaultValue: this._direction },
+                    { id: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.01, defaultValue: this._opacity },
+                    { id: 'z_index', label: 'z-index', min: 0, max: 100, step: 1, defaultValue: this._z_index }
+                ];
+
+                properties.forEach(prop => {
+                    const row = table.insertRow();
+
+                    // Label cell
+                    const labelCell = row.insertCell();
+                    const label = document.createElement('label');
+                    label.htmlFor = `${prop.id}Control`;
+                    label.textContent = `${prop.label}:`;
+                    labelCell.appendChild(label);
+
+                    // Range input cell
+                    const rangeCell = row.insertCell();
+                    const rangeInput = document.createElement('input');
+                    rangeInput.type = 'range';
+                    rangeInput.id = `${prop.id}Control`;
+                    rangeInput.min = prop.min;
+                    rangeInput.max = prop.max;
+                    rangeInput.step = prop.step;
+                    rangeInput.value = prop.defaultValue;
+                    rangeCell.appendChild(rangeInput);
+
+                    // Text input cell
+                    const textCell = row.insertCell();
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.value = prop.defaultValue;
+                    textInput.style.width = '5ch';  // Set width to 5 characters
+                    textCell.appendChild(textInput);
+
+                    // Event listeners to synchronize input fields and update the stimulus
+                    rangeInput.addEventListener('input', () => {
+                        textInput.value = rangeInput.value;
+                        this[prop.id] = parseFloat(rangeInput.value);
+                    });
+                    textInput.addEventListener('input', () => {
+                        rangeInput.value = textInput.value;
+                        this[prop.id] = parseFloat(textInput.value);
+                    });
+                });
+
+                // add remove button
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.style.marginTop = '1em';
+                removeButton.addEventListener('click', () => {
+                    this.container.remove();
+                    form.remove();
+                    // remove corresponding stimulus from list
+                    const index = stimulusList.indexOf(this);
+                    if (index > -1) {
+                        stimulusList.splice(index, 1);
+                    }
+                });
+                const controlRow = table.insertRow();
+                const removeCell = controlRow.insertCell();
+                removeCell.appendChild(removeButton);
+
+                // add start button
+                const startButton = document.createElement('button');
+                startButton.textContent = 'stop';
+                startButton.style.marginTop = '1em';
+                startButton.addEventListener('click', () => {
+                    event.preventDefault();
+                    if (this.running) {
+                        this.pause();
+                        startButton.textContent = 'start';
+                    } else {
+                        this.start();
+                        startButton.textContent = 'stop';
+                    }
+                });
+                const startCell = controlRow.insertCell();
+                startCell.appendChild(startButton);
+
+                return form;
+            }
+        }
+
+        const containerDiv = document.querySelector('.stimulus-container');
+        const bodyElement = document.querySelector('body');
+        const settingsDiv = document.querySelector('.settings-container');
+        settingsDiv.style.display = 'flex';
+        settingsDiv.style.flexWrap = 'wrap';
+        const stimulusList = [];
+        let stimulusIncrement = 1;
+
+        // allow space to stop all and restart all
+        let nextSpaceStop = true;
+        bodyElement.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                // avoid scrolling the page
+                event.preventDefault();
+                if (nextSpaceStop) {
+                    stimulusList.forEach(stimulus => {
+                        stimulus.pause();
+                    });
+                    nextSpaceStop = false;
+                } else {
+                    stimulusList.forEach(stimulus => {
+                        stimulus.start();
+                    });
+                    nextSpaceStop = true;
+                }
+            }
+        });
+
+        function addStimulus(width, height, speed) {
+            const stimulus = new MotionAftereffectStimulus(width, height, speed);
+            stimulus.appendTo(containerDiv);
+            const controller = stimulus.getController();
+            settingsDiv.appendChild(controller);
+
+            // fieldset legend according to the number of stimulus
+            const fieldset = controller.querySelector('fieldset');
+            const legend = document.createElement('legend');
+            legend.textContent = `Stimulus ${stimulusIncrement}`;
+            fieldset.insertBefore(legend, fieldset.firstChild);
+
+            stimulusList.push(stimulus);
+            stimulusIncrement++;
+            moveLastStimulusToCenter();
+        }
+
+        // add control panel
+        function addControlPanel() {
+            const form = document.createElement('form');
+            const fieldset = document.createElement('fieldset');
+            const table = document.createElement('table');
+            form.appendChild(fieldset);
+            fieldset.appendChild(table);
+            // legend
+            const legend = document.createElement('legend');
+            legend.textContent = 'Control Panel';
+            fieldset.insertBefore(legend, fieldset.firstChild);
+            table.style.borderCollapse = 'collapse';
+
+            // x
+            const row = table.insertRow();
+            const xLabelCell = row.insertCell();
+            const xLabel = document.createElement('label');
+            xLabel.htmlFor = 'xControl';
+            xLabel.textContent = 'X:';
+            xLabelCell.appendChild(xLabel);
+            const xRangeCell = row.insertCell();
+            const xRangeInput = document.createElement('input');
+            xRangeInput.type = 'range';
+            xRangeInput.id = 'xControl';
+            xRangeInput.min = 0;
+            xRangeInput.max = 1000;
+            xRangeInput.step = 1;
+            xRangeInput.value = 200;
+            xRangeCell.appendChild(xRangeInput);
+            const xTextCell = row.insertCell();
+            const xTextInput = document.createElement('input');
+            xTextInput.type = 'text';
+            xTextInput.value = 200;
+            xTextInput.style.width = '5ch';
+            xTextCell.appendChild(xTextInput);
+            xRangeInput.addEventListener('input', () => {
+                xTextInput.value = xRangeInput.value;
+            });
+            xTextInput.addEventListener('input', () => {
+                xRangeInput.value = xTextInput.value;
+            });
+
+            // y
+            const yRow = table.insertRow();
+            const yLabelCell = yRow.insertCell();
+            const yLabel = document.createElement('label');
+            yLabel.htmlFor = 'yControl';
+            yLabel.textContent = 'Y:';
+            yLabelCell.appendChild(yLabel);
+            const yRangeCell = yRow.insertCell();
+            const yRangeInput = document.createElement('input');
+            yRangeInput.type = 'range';
+            yRangeInput.id = 'yControl';
+            yRangeInput.min = 0;
+            yRangeInput.max = 1000;
+            yRangeInput.step = 1;
+            yRangeInput.value = 200;
+            yRangeCell.appendChild(yRangeInput);
+            const yTextCell = yRow.insertCell();
+            const yTextInput = document.createElement('input');
+            yTextInput.type = 'text';
+            yTextInput.value = 200;
+            yTextInput.style.width = '5ch';
+            yTextCell.appendChild(yTextInput);
+            yRangeInput.addEventListener('input', () => {
+                yTextInput.value = yRangeInput.value;
+            });
+            yTextInput.addEventListener('input', () => {
+                yRangeInput.value = yTextInput.value;
+            });
+
+            // add button
+            const addButton = document.createElement('button');
+            addButton.textContent = 'Add Stimulus';
+            addButton.style.marginTop = '1em';
+            addButton.addEventListener('click', () => {
+                event.preventDefault();
+                addStimulus(parseInt(xTextInput.value), parseInt(yTextInput.value), 1);
+            });
+            const addRow = table.insertRow();
+            const addCell = addRow.insertCell();
+            addCell.appendChild(addButton);
+
+            // add the stop all button
+            const stopAllButton = document.createElement('button');
+            stopAllButton.textContent = 'Stop All';
+            stopAllButton.style.marginTop = '1em';
+            stopAllButton.addEventListener('click', () => {
+                stimulusList.forEach(stimulus => {
+                    event.preventDefault();
+                    stimulus.pause();
+                });
+                nextSpaceStop = false;
+            });
+            const stopRunAllRow = table.insertRow();
+            const stopAllCell = stopRunAllRow.insertCell();
+            stopAllCell.appendChild(stopAllButton);
+
+            // add the start all button
+            const startAllButton = document.createElement('button');
+            startAllButton.textContent = 'Start All';
+            startAllButton.style.marginTop = '1em';
+            startAllButton.addEventListener('click', () => {
+                stimulusList.forEach(stimulus => {
+                    event.preventDefault();
+                    stimulus.start();
+                });
+                nextSpaceStop = true;
+            });
+            const startAllCell = stopRunAllRow.insertCell();
+            startAllCell.appendChild(startAllButton);
+
+            settingsDiv.appendChild(form);
+        }
+
+        function addFixation() {
+            // add a red fixation cross with character +
+            const fixation = document.createElement('div');
+            fixation.textContent = '+';
+            fixation.style.color = 'red';
+            fixation.style.fontSize = '2em';
+            fixation.style.position = 'absolute';
+            fixation.style.left = '50%';
+            fixation.style.top = '50%';
+            fixation.style.transform = 'translate(-50%, -50%)';
+            // z-index
+            fixation.style.zIndex = 101;
+            fixation.style.userSelect = 'none';
+            containerDiv.appendChild(fixation);
+        }
+
+        function moveFirstStimulusToCenter() {
+            stimulusList[0].container.style.left = '50%';
+            stimulusList[0].container.style.top = '50%';
+            stimulusList[0].container.style.transform = 'translate(-50%, -50%)';
+        }
+
+        function moveLastStimulusToCenter() {
+            stimulusList[stimulusList.length - 1].container.style.left = '50%';
+            stimulusList[stimulusList.length - 1].container.style.top = '50%';
+            stimulusList[stimulusList.length - 1].container.style.transform = 'translate(-50%, -50%)';
+        }
+
+        addControlPanel()
+        addFixation()
+
+        addStimulus(200, 200, 1);
+        moveLastStimulusToCenter();
+
+    </script>
+</body>
+
+</html>
