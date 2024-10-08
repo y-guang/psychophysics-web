@@ -30,13 +30,17 @@
 </style>
 
 <body>
-    <h1>Motion Aftereffect (MAE)</h1>
+    <h1>Motion Aftereffect (MAE) With Pulse Width Modulation (PWM)</h1>
     <div class="stimulus-container"></div>
     <h2>Settings</h2>
     <div class="settings-container"></div>
     <h2>What is this?</h2>
     <p>
-        The stimuli are drifting luminance noise. It drifts single direction with a certain speed.
+        There are actually two stimuli present (you can add more) and each of them move toward a single direction.
+        However, they alternate, so it looks like they're transparent.
+        This alternating pattern is technically known as PWM.
+        If you increase the PWM period (the length of each alternate) in the Settings, you can see the alternate pattern
+        clearly.
     </p>
     <p>
         The motion aftereffect (MAE) is a visual illusion that after watching a moving stimulus for some time,
@@ -44,11 +48,12 @@
         seconds, and then click stop all button, you will see a motion toward the opposite direction.
     </p>
     <p>
-        Different types of motion can trigger different MAE. Current stimulus is one type of first-order motion.
+        Current version is one variation of the MAE. You should see an combined effect of the stimuli, when you stop the
+        stimuli.
     </p>
     <h2>Tips</h2>
     <ul>
-        <li>The stimulus is draggable, you can move it around by clicking and dragging.</li>
+        <li>press 'SPACE' to stop and start all stimuli.</li>
         <li>You can use space to stop and start all stimuli.</li>
         <li>In the Control Panel, you can add more stimuli and specify the width and height of the stimulus.</li>
         <li>New stimuli will be at the top right corner of the container. it may stack on top of each other. Drag them
@@ -378,11 +383,13 @@
                         stimulus.pause();
                     });
                     nextSpaceStop = false;
+                    isPWMEnabled = false;
                 } else {
                     stimulusList.forEach(stimulus => {
                         stimulus.start();
                     });
                     nextSpaceStop = true;
+                    isPWMEnabled = true;
                 }
             }
         });
@@ -416,6 +423,37 @@
             legend.textContent = 'Control Panel';
             fieldset.insertBefore(legend, fieldset.firstChild);
             table.style.borderCollapse = 'collapse';
+
+            // PWM setting
+            const pwmRow = table.insertRow();
+            const pwmLabelCell = pwmRow.insertCell();
+            const pwmLabel = document.createElement('label');
+            pwmLabel.htmlFor = 'pwmPeriodControl';
+            pwmLabel.textContent = 'Period (frames):';
+            pwmLabelCell.appendChild(pwmLabel);
+            const pwmRangeCell = pwmRow.insertCell();
+            const pwmRangeInput = document.createElement('input');
+            pwmRangeInput.type = 'range';
+            pwmRangeInput.id = 'pwmPeriodControl';
+            pwmRangeInput.min = 1;
+            pwmRangeInput.max = 120;
+            pwmRangeInput.step = 1;
+            pwmRangeInput.value = 1;
+            pwmRangeCell.appendChild(pwmRangeInput);
+            const pwmTextCell = pwmRow.insertCell();
+            const pwmTextInput = document.createElement('input');
+            pwmTextInput.type = 'text';
+            pwmTextInput.value = 1;
+            pwmTextInput.style.width = '5ch';
+            pwmTextCell.appendChild(pwmTextInput);
+            pwmRangeInput.addEventListener('input', () => {
+                pwmTextInput.value = pwmRangeInput.value;
+                updatePWMPeriod(parseInt(pwmRangeInput.value));
+            });
+            pwmTextInput.addEventListener('input', () => {
+                pwmRangeInput.value = pwmTextInput.value;
+                updatePWMPeriod(parseInt(pwmTextInput.value));
+            });
 
             // x
             const row = table.insertRow();
@@ -495,8 +533,10 @@
                 stimulusList.forEach(stimulus => {
                     event.preventDefault();
                     stimulus.pause();
+                    isPWMEnabled
                 });
                 nextSpaceStop = false;
+                isPWMEnabled = false;
             });
             const stopRunAllRow = table.insertRow();
             const stopAllCell = stopRunAllRow.insertCell();
@@ -512,6 +552,7 @@
                     stimulus.start();
                 });
                 nextSpaceStop = true;
+                isPWMEnabled = true;
             });
             const startAllCell = stopRunAllRow.insertCell();
             startAllCell.appendChild(startAllButton);
@@ -552,6 +593,45 @@
 
         addStimulus(200, 200, 1);
         moveLastStimulusToCenter();
+        addStimulus(200, 200, 1);
+        moveLastStimulusToCenter();
+
+        stimulusList[1].direction = 90;
+
+        let frameN = 0;
+        let pwmPeriod = 1;
+        let isPWMEnabled = true;
+
+        function animateStimuli() {
+            if (isPWMEnabled) {
+                // Hide all stimuli
+                stimulusList.forEach(stimulus => {
+                    stimulus.container.style.display = 'none';
+                });
+
+                // Calculate which stimulus to show considering the period
+                if (stimulusList.length > 0) {
+                    const stimulusIndex = Math.floor(frameN / pwmPeriod) % stimulusList.length;
+                    stimulusList[stimulusIndex].container.style.display = 'block';
+                }
+                frameN++;
+            } else {
+                stimulusList.forEach(stimulus => {
+                    if (stimulus.container.style.display === 'none') {
+                        stimulus.container.style.display = 'block';
+                    }
+                });
+            }
+            requestAnimationFrame(animateStimuli);
+        }
+
+        function updatePWMPeriod(newPeriod) {
+            pwmPeriod = newPeriod;
+        }
+
+
+        // Start the animation
+        requestAnimationFrame(animateStimuli);
 
     </script>
 </body>
